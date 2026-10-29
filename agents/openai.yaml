@@ -1,0 +1,4 @@
+interface:
+  display_name: "STE Writing"
+  short_description: "Write and review clear technical prose"
+  default_prompt: "Use $ste-writing to review this technical text."
