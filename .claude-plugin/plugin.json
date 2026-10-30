@@ -1,0 +1,19 @@
+{
+  "name": "ste-writing",
+  "displayName": "STE Writing",
+  "version": "0.1.0",
+  "description": "Write, rewrite, or review technical prose with selected ASD-STE100 Simplified Technical English rules and local style preferences.",
+  "author": {
+    "name": "Viktor Zvodin",
+    "email": "vitka@vitka.org"
+  },
+  "license": "MIT",
+  "keywords": [
+    "simplified-technical-english",
+    "ste",
+    "technical-writing",
+    "documentation",
+    "plain-language",
+    "linter"
+  ]
+}

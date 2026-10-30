@@ -1,14 +1,14 @@
-# The 39 recurring errors
+# 39 recurring word choices
 
-ASD-STE100 Issue 9 ends its dictionary introduction with a list of frequent writer errors.
-The list gives an approved replacement for each word. This file contains that list as data.
-It is a short factual excerpt. The full standard is free at https://asd-ste100.org.
+This reference collects word choices and possible replacements based on the recurring-errors list in ASD-STE100 Issue 9.
+It is not a complete dictionary or a list of automatic substitutions. Check the official standard for approved meanings, parts of speech, and conditions of use.
+The [official ASD-STE100 site](https://asd-ste100.org) is the source for the standard.
 
-The dictionary prints approved replacements in UPPERCASE. This file uses the same format.
+Uppercase marks replacement candidates in this table. It does not certify their use in a particular sentence.
 Some replacements change the part of speech. For example, check as a verb becomes CHECK as a noun: "do a check".
 For these replacements, change the sentence structure.
 
-| # | Do not write | Write |
+| # | Word to review | Replacement to consider |
 |---|---|---|
 | 1 | acceptable (adj) | PERMITTED |
 | 2 | alternate (adj) | ALTERNATIVE |
@@ -58,9 +58,9 @@ In flavored mode, follow the rules in [SKILL.md](SKILL.md). These examples add n
 
 - **ensure → make sure**: Use this replacement in READMEs.
 - **however → but** and **therefore → thus / as a result**: These shorter connectors keep the same logic.
-- **since → because**: STE prohibits "since" because it can mean time or cause.
+- **since → because**: Use this replacement only for a cause. Keep temporal meaning when "since" refers to time.
   For example, "since the server restarted" can have either meaning.
-- **may → can** and **should / shall → must**: These words express permission and obligation.
+- **may → can** and **should / shall → must**: Their meaning depends on context, including uncertainty, permission, recommendations, and obligations.
   Use "can" for permission and "must" for an obligation only when these words preserve the original meaning.
   Preserve recommendations and uncertainty. If a replacement changes meaning, rewrite the sentence or flag the conflict.
 - **perform → do**: "perform an analysis" uses a noun for an action. Write "analyze".
@@ -69,5 +69,6 @@ In flavored mode, follow the rules in [SKILL.md](SKILL.md). These examples add n
 - **check / test as verbs**: STE uses them as nouns ("do a check", "do a test") to keep action verbs unambiguous.
   In flavored software prose, you can keep "check" as a verb. Use one word for the action.
 
-The `--strict` flag of [scripts/ste-lint.py](scripts/ste-lint.py) enforces the strict subset: however, since, may, should, shall, using, follow.
-Flavored mode permits these words.
+The `--strict` flag of [scripts/ste-lint.py](scripts/ste-lint.py) requests contextual review of however, since, using, and forms of follow.
+These findings do not affect the score. The linter does not flag may, should, or shall as word-choice errors: their meaning needs human review.
+This list is a reference for selected substitutions, not a complete dictionary check. The preservation guards in [SKILL.md](SKILL.md) apply to every entry.

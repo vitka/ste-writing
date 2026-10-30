@@ -12,16 +12,19 @@ import sys
 from typing import TypedDict
 
 # Increment when scoring rules or output change.
-SCORE_VERSION = 1
+SCORE_VERSION = 3
 
 LintResult = TypedDict(
     "LintResult",
     {
         "score_version": int,
         "mode": str,
+        "quotes_excluded": bool,
         "words": int,
         "sentences": int,
         "violations": dict[str, int],
+        "review": dict[str, int],
+        "house_style": dict[str, int],
         "total": int,
         "total_per100w": float,
         "em_dash(slop-marker)": int,
@@ -111,14 +114,12 @@ BANNED: list[str] = [
     "a variety of",
     "in the event that",
     "due to the fact that",
-    "it is important to note",
 ]
-# Strict mode checks terms that can appear in ordinary documentation.
+# Context-dependent vocabulary suggestions, not dictionary validation.
+# Modals are excluded: their certainty and obligation are content.
 STRICT_BANNED: list[str] = [
     "however",
     "since",
-    "should",
-    "shall",
     "using",
     "follow",
     "follows",
@@ -142,7 +143,7 @@ PHRASAL: list[str] = [
     "spun up",
     "reaching out",
 ]
-MODAL_HEDGE: list[str] = [
+FILLER: list[str] = [
     "it is important to note",
     "it should be noted",
     "it is worth noting",
@@ -151,6 +152,11 @@ MODAL_HEDGE: list[str] = [
     "as noted above",
 ]
 BE = r"(?:am|is|are|was|were|be|been|being)"
+MODAL_PERFECT_PREFIX = re.compile(
+    r"\b(?:(?:may|might|could|would|should|must|will|shall|can)(?:\s+not)?"
+    r"|(?:may|might|could|would|should|must|ca|wo|sha)n['’]t)\s+$",
+    re.IGNORECASE,
+)
 PP_IRREG = r"(?:done|made|sent|read|built|kept|held|set|put|run|written|shown|given|taken|found|got|gotten|seen|known|thrown|drawn)"
 # Rule 3.3: Adjectival participles count as passive only with a by-agent.
 STATIVE = r"(?:closed|opened?|damaged|completed?|installed|connected|required|expected|configured|enabled|disabled|deprecated|supported)"
@@ -286,6 +292,52 @@ def strip_quotes(text: str) -> str:
     )
 
 
+def strip_link_targets(text: str) -> str:
+    """Keep link labels, but omit destinations and reference definitions."""
+    text = re.sub(r"(?m)^ {0,3}\[[^\]\n]+\]:[^\n]*$", "", text)
+    # Scan balanced parentheses so URL paths can contain parentheses. Quoted
+    # link titles and angle-bracket destinations can contain them too.
+    opener = re.compile(r"!?\[([^\]\n]*)\]\(")
+    out = []
+    position = 0
+    for match in opener.finditer(text):
+        if match.start() < position:
+            continue
+        depth, end, delimiter = 1, match.end(), None
+        while end < len(text) and depth:
+            char = text[end]
+            if char == "\\":
+                end += 2
+                continue
+            if delimiter:
+                if char == delimiter:
+                    delimiter = None
+            elif char == "<":
+                delimiter = ">"
+            elif char in "\"'" and (end == match.end() or text[end - 1].isspace()):
+                delimiter = char
+            elif char == "(":
+                depth += 1
+            elif char == ")":
+                depth -= 1
+            end += 1
+        if depth:
+            continue
+        out.extend((text[position:match.start()], match[1]))
+        position = end
+    out.append(text[position:])
+    text = "".join(out)
+    text = re.sub(r"!?\[([^\]\n]+)\]\[[^\]\n]*\]", r"\1", text)
+    text = re.sub(r"<(?:https?://|mailto:)[^>\n]+>", " ", text, flags=re.IGNORECASE)
+    # Preserve trailing sentence punctuation outside bare URLs.
+    return re.sub(
+        r"\b(?:https?://|mailto:)[^\s<>\"']+",
+        lambda match: " " + match[0][len(match[0].rstrip(".,!?")):],
+        text,
+        flags=re.IGNORECASE,
+    )
+
+
 def prose_blocks(text: str) -> list[str]:
     """Join soft wraps without joining headings, list items, or table rows."""
     blocks = []
@@ -306,7 +358,10 @@ def prose_blocks(text: str) -> list[str]:
         prefix = heading or item
         if prefix is not None:
             s = s[prefix.end() :]
-        if heading or table:
+        if table:
+            # Separate cells before length checks. Escaped pipes are content.
+            blocks.extend(cell.strip() for cell in re.split(r"(?<!\\)\|", s) if cell.strip())
+        elif heading:
             blocks.append(s)
         else:
             current.append(s)
@@ -318,7 +373,7 @@ def prose_blocks(text: str) -> list[str]:
 def sentences(text: str) -> list[str]:
     out = []
     for s in prose_blocks(text):
-        parts = re.split(r"(?<=[.!?:])\s+(?=[A-Z0-9\"'\-])", s)
+        parts = re.split(r"(?<=[.!?:])[\"'”’]*\s+(?=[A-Z0-9\"'“‘\-])", s)
         for p in parts:
             p = p.strip()
             if p:
@@ -357,11 +412,17 @@ def noun_trains(text: str) -> list[str]:
     return hits
 
 
-def lint(text: str, strict: bool = False) -> LintResult:
-    text = strip_quotes("\n\n".join(prose_blocks(strip_code(text))))
+def lint(text: str, strict: bool = False, exclude_quotes: bool = False) -> LintResult:
+    text = "\n\n".join(prose_blocks(strip_link_targets(strip_code(text))))
+    if exclude_quotes:
+        text = strip_quotes(text)
     sents = sentences(text)
-    words = sum(wc(s) for s in sents) or 1
+    words = sum(wc(s) for s in sents)
+    # Only mechanical checks contribute to the score. Context and local
+    # preferences must not pressure an editor to change the source meaning.
     v = {}
+    review = {}
+    house_style = {}
     # Instructions have a 20-word limit; descriptions have a 25-word limit.
     # Sentence type needs human review, so do not score the ambiguous range.
     longs = [(wc(s), s) for s in sents if wc(s) > 25]
@@ -379,47 +440,52 @@ def lint(text: str, strict: bool = False) -> LintResult:
         )
     )
     passive_parts = re.findall(rf"\b{BE}\s+(\w+ed|{PP_IRREG})\b", text, re.IGNORECASE)
-    v["passive_voice"] = sum(
+    review["passive_voice"] = sum(
         1 for p in passive_parts if not re.fullmatch(STATIVE, p, re.IGNORECASE)
     ) + len(re.findall(rf"\b{BE}\s+{STATIVE}\s+by\b", text, re.IGNORECASE))
-    v["complex_tense"] = len(
+    review["complex_tense"] = sum(
+        1
+        for match in re.finditer(
+            rf"\b(?:have|has|had)\s+(?:been\s+)?(?:\w+ed|{PP_IRREG})\b",
+            text,
+            re.IGNORECASE,
+        )
+        if not MODAL_PERFECT_PREFIX.search(text[:match.start()])
+    )
+    review["ing_main_verb"] = len(re.findall(rf"\b{BE}\s+\w+ing\b", text, re.IGNORECASE))
+    review["nominalization"] = len(
         re.findall(
-            rf"\b(?:(?:may|might|could|would|should|must|will|shall|can)\s+)?(?:have|has|had)\s+(?:been\s+)?(?:\w+ed|{PP_IRREG})\b",
+            r"\b(?:(?:perform(?:s|ed)?|conduct(?:s|ed)?|carry out|carries out|carried out)"
+            r"\s+(?:a|an|the)\s+\w+(?:tion|ment|ance|ence|ysis)|makes? use of)\b",
             text,
             re.IGNORECASE,
         )
     )
-    v["ing_main_verb"] = len(re.findall(rf"\b{BE}\s+\w+ing\b", text, re.IGNORECASE))
-    v["nominalization"] = len(
-        re.findall(
-            r"\b(?:perform(?:s|ed)?|conduct(?:s|ed)?|carry out|carries out|make use of|makes use of)\b",
-            text,
-            re.IGNORECASE,
-        )
-    ) + len(re.findall(r"\b\w{4,}(?:tion|ment|ance|ence)\s+of\b", text, re.IGNORECASE))
-    v["phrasal_verb"], _ = count_ci(text, PHRASAL)
-    v["banned_word"], bh = count_ci(text, BANNED)
-    v["marketing_adjective"], mh = count_ci(text, MARKETING)
-    v["modal_hedge"], _ = count_ci(text, MODAL_HEDGE)
+    review["phrasal_verb"], _ = count_ci(text, PHRASAL)
+    house_style["word_choice"], bh = count_ci(text, BANNED)
+    house_style["marketing_adjective"], mh = count_ci(text, MARKETING)
+    house_style["filler"], _ = count_ci(text, FILLER)
     paras = [p for p in re.split(r"\n\s*\n", text) if p.strip()]
     v["long_paragraph(>6s)"] = sum(1 for p in paras if len(sentences(p)) > 6)
     em = text.count("—")
     trains = noun_trains(text)
+    house_style["em_dash"] = em
+    review["noun_train(>=4w)"] = len(trains)
+    review["sentence_21_to25w"] = len(length_review)
     if strict:
-        n_strict, _ = count_ci(text, STRICT_BANNED)
-        # Match lowercase "may"; preserve the month name "May".
-        n_strict += len(re.findall(r"(?<![A-Za-z])may(?![a-z])", text))
-        v["strict_banned_word"] = n_strict
-        v["em_dash"] = em
+        review["strict_word_choice"], _ = count_ci(text, STRICT_BANNED)
     total = sum(v.values())
     return {
         "score_version": SCORE_VERSION,
         "mode": "strict" if strict else "flavored",
+        "quotes_excluded": exclude_quotes,
         "words": words,
         "sentences": len(sents),
         "violations": v,
+        "review": review,
+        "house_style": house_style,
         "total": total,
-        "total_per100w": round(total * 100.0 / words, 2),
+        "total_per100w": round(total * 100.0 / max(words, 1), 2),
         "em_dash(slop-marker)": em,
         "noun_train(>=4w,marker)": len(trains),
         "sentence_21_to25w(marker)": len(length_review),
@@ -437,17 +503,18 @@ if __name__ == "__main__":
     args = sys.argv[1:]
     strict = "--strict" in args
     as_json = "--json" in args
+    exclude_quotes = "--exclude-quotes" in args
     fail_over = None
     if "--fail-over" in args:
         i = args.index("--fail-over")
         fail_over = float(args[i + 1])
         del args[i : i + 2]
-    files = [a for a in args if a not in ("--strict", "--json")]
+    files = [a for a in args if a not in ("--strict", "--json", "--exclude-quotes")]
     worst = 0.0
     if not files:
         if isinstance(sys.stdin, io.TextIOWrapper):
             sys.stdin.reconfigure(encoding="utf-8")
-        r = lint(sys.stdin.read(), strict=strict)
+        r = lint(sys.stdin.read(), strict=strict, exclude_quotes=exclude_quotes)
         print(json.dumps(r, indent=2))
         worst = r["total_per100w"]
     else:
@@ -460,13 +527,13 @@ if __name__ == "__main__":
             exp += matches
         for f in exp:
             with open(f, encoding="utf-8") as fh:
-                r = lint(fh.read(), strict=strict)
+                r = lint(fh.read(), strict=strict, exclude_quotes=exclude_quotes)
             worst = max(worst, r["total_per100w"])
             if as_json:
                 print(json.dumps({"file": f, **r}, indent=2))
             else:
                 print(
-                    f"{os.path.basename(f):32} words={r['words']:4d} total={r['total']:3d} per100w={r['total_per100w']:6.2f} em_dash={r['em_dash(slop-marker)']:2d} length_review={r['sentence_21_to25w(marker)']:2d}"
+                    f"{os.path.basename(f):32} words={r['words']:4d} total={r['total']:3d} per100w={r['total_per100w']:6.2f} review={sum(r['review'].values()):3d} house_style={sum(r['house_style'].values()):3d} quotes_excluded={exclude_quotes} length_review={r['sentence_21_to25w(marker)']:2d}"
                 )
     if fail_over is not None and worst > fail_over:
         sys.exit(1)

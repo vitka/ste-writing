@@ -1,44 +1,46 @@
 ---
 name: ste-writing
 description: >-
-    Write, rewrite, or review technical prose with ASD-STE100 Simplified Technical English (STE) rules.
+    Write, rewrite, or review technical prose with selected ASD-STE100 Simplified Technical English (STE) rules and local style preferences.
     Use for plain language, STE reviews, or removing "AI slop". Does not apply to code.
 license: MIT
 metadata:
-    spec: ASD-STE100 Issue 9 (January 2025)
+    reference: ASD-STE100 Issue 9 (January 2025)
 ---
 
 # STE Writing
 
-Write prose in ASD-STE100 Simplified Technical English (STE). Issue 9 has 53 rules in 9 sections and 875 approved words.
+Write clear technical prose with selected STE rules and local preferences. This is an editing aid, not an STE compliance checker.
 
 This applies to documentation, READMEs, pull-request text, error messages, release notes, comments, tool descriptions, system prompts, and agent-to-agent messages. It does not apply to code, identifiers, or command syntax. It is not for marketing copy, essays, or other text that needs a distinct voice.
 
 Three ways to use it:
 
-- **write** - produce new text in STE.
-- **rewrite** - convert existing text to STE. Keep every fact.
-- **review** - do not rewrite. Give a table (`Rule | Original | Simplified`) with one row per violation. Then add one line about text you did not change and why.
+- **write** - produce new text under the selected mode.
+- **rewrite** - apply the selected mode to existing text. Keep every fact.
+- **review** - do not edit the source. Give a table (`Rule | Original | Simplified`) for confirmed issues. Identify local preferences as such. Then note any retained wording that needs explanation.
 
 ## Rules
 
-Numbers in parentheses are rule numbers in ASD-STE100 Issue 9.
+Numbers in parentheses refer to ASD-STE100 Issue 9. These are selected rule summaries, not the full standard.
+The plain-word substitutions and marketing-word list below are local editing guidance, not an approved STE dictionary.
 
 ### WORDS
 
-- Use one name for one thing (1.11, 9.4). Do not alternate between check, verify, validate, and confirm for the same action. Choose one word. Certified STE uses "make sure" or "examine".
+- Use one name for one thing (1.11, 9.4). Do not alternate between check, verify, validate, and confirm for the same action. Keep different names for different actions.
 - Use the short, common word. Examples: start (not begin/commence/initiate), use (not utilize/leverage), help (not facilitate), make sure (not ensure/verify), do (not perform/conduct).
   More examples: give or supply (not provide), before (not prior to), after (not subsequent to), about (not regarding/concerning).
   Other examples: get (not obtain/acquire), show (not demonstrate), also (not additionally/furthermore/moreover).
 - Give each word one meaning (1.3). "fall" means to move down, not to decrease.
-- No marketing adjectives: seamless, robust, powerful, cutting-edge, effortless, world-class, next-generation, revolutionary.
+- Local style: remove unsupported marketing adjectives such as seamless, robust, powerful, cutting-edge, effortless, world-class, next-generation, revolutionary. Preserve established technical terms.
 - American spelling (1.14).
 
 ### VERBS
 
 - Use the active voice: "the parser reads the file", not "the file is read by the parser". Always use it in procedures. In descriptive text, use the passive voice only when the actor is unknown (3.6).
 - A past participle used as an adjective is not passive and is correct (3.3): "the valve is closed", "the field is required".
-- Only simple tenses (3.2): infinitive, imperative, simple present, simple past, simple future. No present perfect: "we received the report", never "we have received the report".
+- STE uses simple verb forms (3.2): infinitive, imperative, simple present, simple past, simple future. Prefer "we received the report" to "we have received the report" when the meaning is unchanged.
+  In both modes, keep a compound form when it carries necessary meaning, such as uncertainty in "may have failed" or current relevance in "has completed". Report the departure when relevant.
 - Do not stack auxiliary verbs (3.4). Example to rewrite: "it is important to note that this may help to improve". Write "this improves X" only if the evidence supports that claim.
 - Use a verb for an action (3.7): "analyze the log", not "perform an analysis of the log".
 - No "-ing" main verb where a simple tense works (3.5).
@@ -72,12 +74,20 @@ Numbers in parentheses are rule numbers in ASD-STE100 Issue 9.
 
 ## Guards
 
+- During a rewrite, do not add facts, causes, instructions, or requirements that the source does not state. Put proposed additions outside the rewrite, only when requested.
 - Never drop a fact, number, condition, or scope qualifier to satisfy a length cap. Keep the longer sentence and flag it.
-- Preserve certainty, permission, obligation, and negation. If a substitution changes meaning, rewrite the sentence or flag the conflict. This guard takes precedence over word replacements in every mode.
+- Preserve certainty, permission, obligation, negation, and temporal meaning. These guards take precedence over every style rule and lint finding in both modes.
+  Do not turn "may have failed" into "failed", or a recommendation with "should" into a requirement with "must". Keep the original when no faithful rewrite is possible.
 - Preserve code identifiers, part numbers, and units exactly.
 - Preserve quoted error strings and safety wording used as reference material. If the user requests an edit to an error message or safety text, revise it under the guards above. Leave wording outside the requested edit unchanged.
 - Change the smallest span that fixes a violation. Do not restyle text a rule does not touch.
-- If the input already complies, keep it unchanged.
+- If no change is needed under the selected mode, keep the input unchanged.
+
+## Project terminology
+
+Use the project's existing glossary when available. Keep technical nouns and verbs, API names, and product terms that carry a specific meaning.
+Define unfamiliar terms at first use when the supplied context supports a definition. Do not invent a definition or replace distinct concepts with one generic word.
+If terminology is ambiguous, flag it. A project glossary supports consistency; it does not establish ASD dictionary compliance.
 
 ## Output
 
@@ -93,11 +103,12 @@ If nothing changed, state that in the note or reply. If lint could not run, repo
 
 Use the mode the user requests. Otherwise, use strict mode for procedures, runbooks, safety text, and error messages. Use flavored mode for other prose.
 
-- **strict** - procedures, runbooks, safety text, error messages. Apply every rule and the two length limits. Use the strict word set: but (not however), because (not since, for causes), can (not may), must (not should/shall).
+- **strict** - procedures, runbooks, safety text, error messages. Apply the implemented rule subset and the two length limits, subject to the guards. Strict mode does not verify dictionary compliance.
+  Consider but (not however), because (not since, for causes), can (not may, for permission), and must (not should/shall, for an existing obligation). Never apply these substitutions mechanically.
   Other strict replacements: use or with (not using), obey (not follow, for instructions), push (not press, for physical controls).
-  The standard lists the 39 most frequent writer errors in [ste-recurring-errors.md](ste-recurring-errors.md).
+  See [ste-recurring-errors.md](ste-recurring-errors.md) for 39 recurring word choices and possible replacements. Check the official dictionary when approved wording matters.
 - **flavored** - general prose (READMEs, pull-request descriptions, docs). Apply the rules for sentences, paragraphs, tenses, active voice, noun groups, and phrasal verbs.
-  Permit exceptions to the 875-word dictionary and the strict word set so the text reads naturally.
+  Treat word substitutions as suggestions so the text reads naturally. Neither mode checks the full dictionary.
 
 ## Verify
 
@@ -112,11 +123,20 @@ uv run "/absolute/path/to/skill/scripts/ste-lint.py" "/absolute/path/to/draft.md
 uv run "/absolute/path/to/skill/scripts/ste-lint.py" --strict "/absolute/path/to/draft.md"
 ```
 
-The flavored target is below 2.5 per 100 words. The strict target is below 1.5 per 100 words.
+The score is a count of mechanical findings per 100 words, not a quality grade. This project has no calibrated pass threshold.
 
-Treat lint findings as candidates for review. The scores are advisory, not proof of STE compliance. Do not change valid text only to reduce a score.
+The linter separates three kinds of findings:
 
-The linter excludes quoted text from language checks. Review quotations manually when they are part of the requested edit. It counts clear contractions but leaves ambiguous apostrophe forms for manual review.
+- **Mechanical checks** (`violations`): sentence and paragraph length, semicolons, and clear contractions. Only these contribute to `total`, `total_per100w`, and `--fail-over`.
+- **Context-dependent review** (`review`): possible passive voice, compound tenses, verb forms, nominalizations, phrasal verbs, noun groups, and strict word choices. These do not affect the score.
+- **House style** (`house_style`): plain-word suggestions, marketing words, filler, and em dashes. These do not affect the score.
+
+Score version 3 changes how quotations, links, and tables are counted. Do not compare it with earlier versions. Modal words are not penalized, and modal perfects such as "may have failed" are excluded from compound-tense findings.
+All findings require review. Even a mechanical limit can conflict with a preservation guard. Do not change valid text only to reduce a score.
+
+The linter checks quoted text by default. Use `--exclude-quotes` only when text inside paired quotation marks is protected reference material.
+For a document that mixes quoted edit targets and references, lint the requested edit separately. The flag excludes all paired quoted spans, not Markdown blockquotes.
+Link destinations and code are excluded. Visible link labels and individual table cells are checked. Clear contractions are counted. Ambiguous apostrophe forms need manual review.
 
 The linter scores sentences above 25 words. Its `length_review` count marks sentences with 21 to 25 words for manual review. Apply the 20-word limit to instructions and the 25-word limit to descriptions. Use `--json` for sample sentences.
 
@@ -129,7 +149,7 @@ If execution is unavailable or neither runner works, use this checklist:
 1. Any instruction over 20 words, or any other sentence over 25? Split it.
 2. Any semicolon or em dash? Replace it with suitable punctuation or split the sentence.
 3. Any contraction? Expand it.
-4. Any present perfect ("has/have received") or modal stack? Use a simple tense.
+4. Any compound tense or modal stack? Simplify only when certainty, obligation, and temporal meaning stay unchanged.
 5. Any passive voice with a known actor? Make it active.
 6. Any "-ing" main verb, nominalization ("perform an analysis"), or phrasal verb ("spin up")? Replace with a plain verb.
 7. Any multi-word noun of four or more words? Unpack it.
@@ -139,6 +159,10 @@ If execution is unavailable or neither runner works, use this checklist:
 
 ## Scope
 
-The linter can check the mechanical rules above. Full STE also needs human judgment about the correct technical noun and whether a sentence makes sense. This skill changes the form of the text. It cannot make an unsupported claim true.
+The linter checks a mechanical subset and suggests contextual review. It cannot verify approved word meanings, parts of speech, or full STE compliance.
+When exact compliance is required, check the text against the official standard and dictionary. A clean score or strict-mode rewrite is not certification.
+This skill changes the form of the text. It cannot make an unsupported claim true.
 
-The full standard is free at https://asd-ste100.org. This skill is unofficial and not affiliated with ASD. ASD-STE100 is a registered EU trademark (No. 017966390).
+The [official ASD-STE100 site](https://asd-ste100.org) is the source for the standard and dictionary. This skill is unofficial and not affiliated with ASD.
+
+Predecessor: [danyuchn/asd-ste100-skill](https://github.com/danyuchn/asd-ste100-skill). This skill adapts its approach for technical prose and repository editing.
